@@ -1,13 +1,16 @@
 // lib/adapters/render-video.ts
 // Text-to-video generation for Tier-2 stretch.
-// Supports Runway / Luma / Pika / Veo via env-selected provider.
-// Always falls back to a pre-baked clip at /clips/tier2-fallback.mp4 so the
-// demo never breaks.
+// Supports Runway / Luma / Pika / Veo via VIDEO_PROVIDER env.
+// Luma is fully implemented; others return null until keys are wired.
+// Always falls back to /clips/tier2-fallback.mp4 so the demo never breaks.
 
 import type { RenderRequest, RenderResult } from "@/lib/types";
 
 const PROVIDER = (process.env.VIDEO_PROVIDER || "fallback").toLowerCase();
 const FALLBACK_CLIP = "/clips/tier2-fallback.mp4";
+const LUMA_BASE = "https://api.lumalabs.ai/dream-machine/v1";
+const POLL_INTERVAL_MS = 3_000;
+const POLL_TIMEOUT_MS = 120_000;
 
 export async function generate(req: RenderRequest): Promise<RenderResult> {
   const disclosure = `Sponsored · ${req.brand}`;
@@ -25,44 +28,147 @@ export async function generate(req: RenderRequest): Promise<RenderResult> {
   }
 }
 
+function buildPrompt(req: RenderRequest): string {
+  return (
+    `Short product-placement video ad for ${req.brand}. ` +
+    `Place the brand naturally in: ${req.slot.label}. ` +
+    `Cinematic, photorealistic, 5 seconds, subtle branded integration.`
+  );
+}
+
 async function callProvider(provider: string, req: RenderRequest): Promise<string | null> {
   switch (provider) {
-    case "runway":  return callRunway(req);
-    case "luma":    return callLuma(req);
-    case "pika":    return callPika(req);
-    case "veo":     return callVeo(req);
-    default:        return null;
+    case "runway":
+      return callRunway(req);
+    case "luma":
+      return callLuma(req);
+    case "pika":
+      return callPika(req);
+    case "veo":
+      return callVeo(req);
+    default:
+      return null;
   }
 }
 
-// Each provider wrapper is a minimal stub — fill in once the chosen key
-// is in .env.local. They all return a hosted asset URL or null.
+async function pollUntilVideo(
+  statusUrl: string,
+  headers: Record<string, string>,
+  extractVideo: (json: Record<string, unknown>) => string | null,
+): Promise<string | null> {
+  const deadline = Date.now() + POLL_TIMEOUT_MS;
 
-async function callRunway(req: RenderRequest): Promise<string | null> {
-  const key = process.env.RUNWAY_API_KEY;
-  if (!key) return null;
-  // TODO: real Runway Gen-3 call with req.brand + slot label as prompt.
-  // Keeping as stub to avoid blocking the demo on async polling logic.
+  while (Date.now() < deadline) {
+    const res = await fetch(statusUrl, { headers });
+    if (!res.ok) return null;
+
+    const json = (await res.json()) as Record<string, unknown>;
+    const state = String(json.state ?? json.status ?? "").toLowerCase();
+
+    if (state === "completed" || state === "succeeded") {
+      return extractVideo(json);
+    }
+    if (state === "failed" || state === "error") {
+      console.warn("[render-video] generation failed", json.failure_reason ?? json.error);
+      return null;
+    }
+
+    await sleep(POLL_INTERVAL_MS);
+  }
+
+  console.warn("[render-video] generation timed out");
   return null;
 }
 
 async function callLuma(req: RenderRequest): Promise<string | null> {
   const key = process.env.LUMA_API_KEY;
   if (!key) return null;
-  // TODO: real Luma Dream Machine call.
-  return null;
+
+  const headers = {
+    Authorization: `Bearer ${key}`,
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  };
+
+  const createRes = await fetch(`${LUMA_BASE}/generations`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      prompt: buildPrompt(req),
+      model: "ray-2",
+      resolution: "720p",
+      duration: "5s",
+      aspect_ratio: "16:9",
+    }),
+  });
+
+  if (!createRes.ok) {
+    console.warn("[render-video:luma] create failed", createRes.status, await createRes.text());
+    return null;
+  }
+
+  const created = (await createRes.json()) as { id?: string };
+  if (!created.id) return null;
+
+  return pollUntilVideo(`${LUMA_BASE}/generations/${created.id}`, headers, (json) => {
+    const assets = json.assets as { video?: string } | undefined;
+    return assets?.video ?? null;
+  });
+}
+
+async function callRunway(req: RenderRequest): Promise<string | null> {
+  const key = process.env.RUNWAY_API_KEY;
+  if (!key) return null;
+
+  const headers = {
+    Authorization: `Bearer ${key}`,
+    "X-Runway-Version": "2024-11-06",
+    "Content-Type": "application/json",
+  };
+
+  const createRes = await fetch("https://api.dev.runwayml.com/v1/text_to_video", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      model: "gen3a_turbo",
+      promptText: buildPrompt(req),
+      duration: 5,
+      ratio: "1280:720",
+    }),
+  });
+
+  if (!createRes.ok) {
+    console.warn("[render-video:runway] create failed", createRes.status);
+    return null;
+  }
+
+  const created = (await createRes.json()) as { id?: string };
+  if (!created.id) return null;
+
+  return pollUntilVideo(`https://api.dev.runwayml.com/v1/tasks/${created.id}`, headers, (json) => {
+    const output = json.output as string[] | undefined;
+    return output?.[0] ?? null;
+  });
 }
 
 async function callPika(req: RenderRequest): Promise<string | null> {
   const key = process.env.PIKA_API_KEY;
   if (!key) return null;
-  // TODO: real Pika call.
+  // Pika API shape varies by plan — stub returns null until event keys arrive.
+  void req;
+  void key;
   return null;
 }
 
 async function callVeo(req: RenderRequest): Promise<string | null> {
   const key = process.env.VEO_API_KEY;
   if (!key) return null;
-  // TODO: real Veo (Google AI Studio) call.
+  // Google Veo via AI Studio — stub returns null until event keys arrive.
+  void req;
+  void key;
   return null;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
