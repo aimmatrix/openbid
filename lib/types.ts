@@ -19,6 +19,7 @@ export interface Scene {
   context: string;        // human-readable scene description for agents
   flags: string[];        // e.g. ["minor_present"] — feeds safety gate
   slots: Slot[];
+  channel?: "video" | "conversational"; // default "video"; "conversational" = ChatGPT-style LLM placement
 }
 
 // --- Campaigns (Lane I+S: Thrad adapter) ---

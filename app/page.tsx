@@ -11,10 +11,12 @@ import { RenderResultPanel } from "@/components/RenderResultPanel";
 import { RevenueCounter } from "@/components/RevenueCounter";
 import { StatusBar } from "@/components/StatusBar";
 import { VideoPlayer } from "@/components/VideoPlayer";
+import { ConversationStage } from "@/components/ConversationStage";
 
 const SCENES = [
   { id: "scene_kitchen_morning", label: "Kitchen — morning" },
   { id: "scene_park_afternoon", label: "Park — afternoon" },
+  { id: "scene_chat_coffee", label: "Chat — sponsored answer" },
 ] as const;
 
 type DemoPhase = "idle" | "loading" | "bidding" | "auction" | "oversight" | "render" | "done";
@@ -286,14 +288,24 @@ export default function Home() {
 
       {/* Body */}
       <main className="flex-1 p-4 md:p-6 grid grid-cols-1 xl:grid-cols-[1.5fr_1fr] gap-4 min-h-0">
-        <VideoPlayer
-          scene={previewScene}
-          active={phase !== "idle" && phase !== "loading"}
-          showPlacement={showPlacement && !vetoed}
-          placementBrand={data?.oversight.final_winner.brand}
-          disclosure={data?.render.disclosure}
-          placementSlotId={data?.oversight.final_winner.target_slot}
-        />
+        {previewScene.channel === "conversational" ? (
+          <ConversationStage
+            scene={previewScene}
+            active={phase !== "idle" && phase !== "loading"}
+            showPlacement={showPlacement && !vetoed}
+            placementBrand={data?.oversight.final_winner.brand}
+            disclosure={data?.render.disclosure}
+          />
+        ) : (
+          <VideoPlayer
+            scene={previewScene}
+            active={phase !== "idle" && phase !== "loading"}
+            showPlacement={showPlacement && !vetoed}
+            placementBrand={data?.oversight.final_winner.brand}
+            disclosure={data?.render.disclosure}
+            placementSlotId={data?.oversight.final_winner.target_slot}
+          />
+        )}
 
         <div className="flex flex-col gap-4 min-h-0">
           <BiddingPanel

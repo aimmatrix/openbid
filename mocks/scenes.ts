@@ -51,6 +51,25 @@ export const scenes: Scene[] = [
       },
     ],
   },
+  {
+    // CONVERSATIONAL CHANNEL — the same buy-side agent + oversight pipeline,
+    // but placing a sponsored answer inside an LLM/chat response (Track-01's
+    // "ChatGPT-style placements"). Proves OpenBid is channel-agnostic.
+    scene_id: "scene_chat_coffee",
+    channel: "conversational",
+    clip_url: "/clips/tier2-fallback.mp4", // reused for the Served Placement panel
+    duration: 6.0,
+    context: 'A user asks an AI assistant: "Can you recommend a good coffee for my morning pour-over?"',
+    flags: [],
+    slots: [
+      {
+        slot_id: "slot_chat_01",
+        label: "sponsored product recommendation in the assistant's reply",
+        timestamp: 0,
+        bbox: [0.08, 0.66, 0.84, 0.22],
+      },
+    ],
+  },
 ];
 
 export function getSceneById(id: string): Scene | undefined {
