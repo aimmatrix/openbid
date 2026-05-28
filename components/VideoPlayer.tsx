@@ -13,6 +13,19 @@ interface VideoPlayerProps {
   placementSlotId?: string;
 }
 
+// Mood backdrop per scene so the stage always looks intentional, even before
+// real footage is dropped into /public/clips.
+function sceneMood(scene: Scene): string {
+  const ctx = (scene.scene_id + " " + scene.context).toLowerCase();
+  if (/park|outdoor|afternoon|garden|beach|picnic/.test(ctx)) {
+    return "from-emerald-900/50 via-zinc-950 to-sky-950/40";
+  }
+  if (/kitchen|morning|sunrise|home|coffee|breakfast/.test(ctx)) {
+    return "from-amber-900/50 via-zinc-950 to-orange-950/30";
+  }
+  return "from-zinc-800 via-zinc-950 to-zinc-900";
+}
+
 export function VideoPlayer({
   scene,
   active,
@@ -23,14 +36,23 @@ export function VideoPlayer({
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [currentTime, setCurrentTime] = useState(0);
+  const [videoReady, setVideoReady] = useState(false);
   const [videoError, setVideoError] = useState(false);
+
+  // Reset media state whenever the clip changes.
+  useEffect(() => {
+    setVideoReady(false);
+    setVideoError(false);
+  }, [scene.clip_url]);
 
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
     if (active) {
       video.currentTime = 0;
-      void video.play().catch(() => setVideoError(true));
+      void video.play().catch(() => {
+        /* missing/forbidden clip — backdrop stays visible */
+      });
     } else {
       video.pause();
     }
@@ -43,6 +65,7 @@ export function VideoPlayer({
 
   const progress = scene.duration > 0 ? (currentTime / scene.duration) * 100 : 0;
   const placementSlot = scene.slots.find((s) => s.slot_id === placementSlotId);
+  const showVideo = videoReady && !videoError;
 
   return (
     <div className="panel flex flex-col overflow-hidden">
@@ -60,25 +83,36 @@ export function VideoPlayer({
 
       <div className="p-3 pt-0">
         <div className="relative aspect-video rounded-lg overflow-hidden border border-[#26262b] bg-[#0a0a0b] scan-overlay">
-          {!videoError ? (
-            <video
-              ref={videoRef}
-              src={scene.clip_url}
-              className="absolute inset-0 w-full h-full object-cover"
-              muted
-              loop
-              playsInline
-              onTimeUpdate={onTimeUpdate}
-              onError={() => setVideoError(true)}
-            />
-          ) : (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-zinc-900 to-zinc-950 p-6 text-center">
-              <span className="text-xs font-mono-numeric text-cyan-400/80 uppercase tracking-widest">
-                Clip placeholder
-              </span>
-              <p className="text-sm text-zinc-400 max-w-md">{scene.context}</p>
-            </div>
-          )}
+          {/* Base layer: mood backdrop — always present so the stage is never blank. */}
+          <div
+            className={`absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-br ${sceneMood(
+              scene,
+            )} p-6 text-center transition-opacity duration-500`}
+            style={{ opacity: showVideo ? 0 : 1 }}
+          >
+            <span className="text-[10px] font-mono-numeric text-cyan-400/70 uppercase tracking-[0.25em]">
+              {active ? "Scene feed · analysing" : "Scene feed"}
+            </span>
+            <p className="text-sm text-zinc-300 max-w-md leading-relaxed">{scene.context}</p>
+            <span className="text-[10px] font-mono-numeric text-zinc-600">
+              {scene.slots.length} placement slots detected
+            </span>
+          </div>
+
+          {/* Video overlays the backdrop once it actually has frames. */}
+          <video
+            ref={videoRef}
+            src={scene.clip_url}
+            className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500"
+            style={{ opacity: showVideo ? 1 : 0 }}
+            muted
+            loop
+            playsInline
+            preload="auto"
+            onLoadedData={() => setVideoReady(true)}
+            onTimeUpdate={onTimeUpdate}
+            onError={() => setVideoError(true)}
+          />
 
           {scene.slots.map((slot) => (
             <SlotOverlay
@@ -92,6 +126,14 @@ export function VideoPlayer({
               disclosure={disclosure}
             />
           ))}
+
+          {/* When there's no real footage, drive the timeline off a clock so slot
+              boxes still animate in on cue during a run. */}
+          <SlotClock
+            active={active && !showVideo}
+            duration={scene.duration}
+            onTick={setCurrentTime}
+          />
         </div>
 
         <div className="mt-3">
@@ -99,10 +141,7 @@ export function VideoPlayer({
             <span>{currentTime.toFixed(1)}s</span>
             <span>{scene.duration.toFixed(1)}s</span>
           </div>
-          <div
-            className="relative h-1.5 rounded-full bg-zinc-800 overflow-hidden timeline-track"
-            style={{ "--progress": `${progress}%` } as React.CSSProperties}
-          >
+          <div className="relative h-1.5 rounded-full bg-zinc-800 overflow-hidden">
             <div
               className="absolute inset-y-0 left-0 bg-cyan-500/70 rounded-full transition-[width] duration-100"
               style={{ width: `${progress}%` }}
@@ -120,6 +159,32 @@ export function VideoPlayer({
       </div>
     </div>
   );
+}
+
+// Advances a virtual playhead when no real video is present, so the slot-box
+// reveal animation still plays during a run.
+function SlotClock({
+  active,
+  duration,
+  onTick,
+}: {
+  active: boolean;
+  duration: number;
+  onTick: (t: number) => void;
+}) {
+  useEffect(() => {
+    if (!active) return;
+    const start = Date.now();
+    let raf = 0;
+    const loop = () => {
+      const elapsed = ((Date.now() - start) / 1000) % duration;
+      onTick(elapsed);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [active, duration, onTick]);
+  return null;
 }
 
 function SlotOverlay({
