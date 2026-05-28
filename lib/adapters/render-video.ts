@@ -7,7 +7,15 @@
 import type { RenderRequest, RenderResult } from "@/lib/types";
 
 const PROVIDER = (process.env.VIDEO_PROVIDER || "fallback").toLowerCase();
-const FALLBACK_CLIP = "/clips/tier2-fallback.mp4";
+const FALLBACK_CLIP = "/clips/tier2-fallback.mp4"; // coffee / default winner
+const APPAREL_CLIP = "/clips/tier2-apparel.mp4";
+
+// Pick a pre-baked Tier-2 clip that matches the winning brand, so a live demo
+// is coherent on either scene: coffee on the kitchen path, apparel on the park
+// path (where the alcohol bid is blocked and an apparel brand is promoted).
+function fallbackClipFor(brand: string): string {
+  return /apparel|kindle|fashion|wear|clothing/i.test(brand) ? APPAREL_CLIP : FALLBACK_CLIP;
+}
 const LUMA_BASE = "https://api.lumalabs.ai/dream-machine/v1";
 const POLL_INTERVAL_MS = 3_000;
 const POLL_TIMEOUT_MS = 120_000;
@@ -16,15 +24,15 @@ export async function generate(req: RenderRequest): Promise<RenderResult> {
   const disclosure = `Sponsored · ${req.brand}`;
 
   if (PROVIDER === "fallback") {
-    return { asset_url: FALLBACK_CLIP, tier: 2, disclosure };
+    return { asset_url: fallbackClipFor(req.brand), tier: 2, disclosure };
   }
 
   try {
     const asset_url = await callProvider(PROVIDER, req);
-    return { asset_url: asset_url || FALLBACK_CLIP, tier: 2, disclosure };
+    return { asset_url: asset_url || fallbackClipFor(req.brand), tier: 2, disclosure };
   } catch (err) {
     console.warn(`[render-video:${PROVIDER}] failed, using fallback`, err);
-    return { asset_url: FALLBACK_CLIP, tier: 2, disclosure };
+    return { asset_url: fallbackClipFor(req.brand), tier: 2, disclosure };
   }
 }
 
