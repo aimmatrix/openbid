@@ -1,25 +1,54 @@
 // lib/adapters/alpic.ts
-// Optional bonus: expose auction/agent tools as an MCP endpoint via Alpic.
-// Local MCP handler lives at POST /api/mcp; Alpic deploys it when ALPIC_TOKEN
-// is present. Without a token, registerAuctionTool() is a no-op.
+// Pointer to the Skybridge MCP server we deploy to Alpic. The actual MCP
+// server lives in mcp/ — Skybridge framework, deployed with `cd mcp && npm
+// run deploy`. This adapter:
+//
+//   1. Exposes the live deployment URL (set in .env.local as
+//      ALPIC_ENDPOINT_URL) so the UI can link judges straight to the
+//      hosted MCP and its playground.
+//   2. Keeps the tool catalogue + MCP-JSON-RPC scaffolding the local
+//      app/api/mcp route uses as a fallback when the Skybridge deploy
+//      isn't reachable.
+//
+// We deliberately do NOT try to "deploy" from this Node process — Alpic
+// deployment is a CLI flow (`npx alpic deploy`), not a runtime API call.
 
 import type { Bid } from "@/lib/types";
 
-const ALPIC_TOKEN = process.env.ALPIC_TOKEN;
-const ALPIC_BASE = process.env.ALPIC_BASE_URL || "https://api.alpic.ai";
-const ALPIC_ENVIRONMENT_ID = process.env.ALPIC_ENVIRONMENT_ID;
+const ALPIC_ENDPOINT = process.env.ALPIC_ENDPOINT_URL;
+const ALPIC_PLAYGROUND = process.env.ALPIC_PLAYGROUND_URL;
 
-export const ALPIC_ENABLED = !!ALPIC_TOKEN;
+export const ALPIC_ENABLED = !!ALPIC_ENDPOINT;
 
+/** Live MCP endpoint judges can call (the Skybridge deploy). */
 export function alpicEndpointUrl(): string | null {
-  return process.env.ALPIC_ENDPOINT_URL || null;
+  return ALPIC_ENDPOINT ?? null;
 }
 
-/** Tool definitions exposed by /api/mcp for judges + Alpic registry. */
+/** Human-friendly playground UI hosted by Alpic. */
+export function alpicPlaygroundUrl(): string | null {
+  if (ALPIC_PLAYGROUND) return ALPIC_PLAYGROUND;
+  if (ALPIC_ENDPOINT) return `${ALPIC_ENDPOINT.replace(/\/$/, "")}/try`;
+  return null;
+}
+
+/** MCP-spec JSON-RPC URL (Streamable HTTP transport lives at /mcp). */
+export function alpicMcpUrl(): string | null {
+  if (!ALPIC_ENDPOINT) return null;
+  return `${ALPIC_ENDPOINT.replace(/\/$/, "")}/mcp`;
+}
+
+/**
+ * Tool catalogue for the LOCAL /api/mcp fallback route. The Skybridge server
+ * in mcp/ exposes its own (overlapping but distinct) catalogue: list_campaigns,
+ * list_scenes, simulate_auction. These three are the local-only ones that
+ * need the parent app's secrets (LLM, Tavily, Overmind) to run.
+ */
 export const MCP_TOOLS = [
   {
     name: "list_campaigns",
-    description: "Return active advertiser campaigns (brands, budgets, guardrails).",
+    description:
+      "Return active OpenBid advertiser campaigns (brands, budgets, guardrails).",
     inputSchema: {
       type: "object",
       properties: {},
@@ -28,11 +57,12 @@ export const MCP_TOOLS = [
   },
   {
     name: "run_auction",
-    description: "Run a second-price (Vickrey) auction over submitted bids for a scene.",
+    description:
+      "Run a second-price (Vickrey) auction over caller-supplied bids for a scene.",
     inputSchema: {
       type: "object",
       properties: {
-        scene_id: { type: "string", description: "Scene identifier, e.g. scene_park_afternoon" },
+        scene_id: { type: "string" },
         bids: {
           type: "array",
           description: "Bid[] conforming to lib/types.ts",
@@ -45,12 +75,17 @@ export const MCP_TOOLS = [
   },
   {
     name: "run_pipeline",
-    description: "End-to-end OpenBid run: scene → agents → auction → oversight → render.",
+    description:
+      "End-to-end OpenBid run: scene → agents → auction → oversight → render. Needs LLM/Tavily/Overmind keys.",
     inputSchema: {
       type: "object",
       properties: {
         scene_id: { type: "string" },
-        tier: { type: "integer", enum: [1, 2], description: "1 = composite, 2 = AI video" },
+        tier: {
+          type: "integer",
+          enum: [1, 2],
+          description: "1 = composite overlay, 2 = AI-generated video",
+        },
       },
       required: ["scene_id"],
       additionalProperties: false,
@@ -90,42 +125,11 @@ export function coerceBids(raw: unknown): Bid[] {
 }
 
 /**
- * Register / redeploy the MCP endpoint on Alpic when credentials are present.
- * Safe to call at startup — no-ops without ALPIC_TOKEN.
+ * Surface the live deployment so a startup log or status panel can link to it.
+ * No-op if ALPIC_ENDPOINT_URL isn't set.
  */
 export async function registerAuctionTool(): Promise<void> {
-  if (!ALPIC_TOKEN) return;
-
-  const localMcp = alpicEndpointUrl() ?? inferLocalMcpUrl();
-
-  try {
-    if (ALPIC_ENVIRONMENT_ID) {
-      const res = await fetch(`${ALPIC_BASE}/v1/environments/${ALPIC_ENVIRONMENT_ID}/deploy`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${ALPIC_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ source: "openbid-mcp", endpoint: localMcp }),
-      });
-      if (!res.ok) {
-        console.warn("[alpic] deploy failed", res.status, await res.text());
-      } else {
-        console.log("[alpic] MCP endpoint deployed", localMcp);
-      }
-      return;
-    }
-
-    // No environment id — log readiness so judges can trace repo → endpoint.
-    console.log("[alpic] MCP tools ready at", localMcp, "— set ALPIC_ENVIRONMENT_ID to auto-deploy");
-  } catch (err) {
-    console.warn("[alpic] registration failed, continuing locally", err);
-  }
-}
-
-function inferLocalMcpUrl(): string {
-  const host = process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-  return `${host.replace(/\/$/, "")}/api/mcp`;
+  if (!ALPIC_ENABLED) return;
+  // eslint-disable-next-line no-console
+  console.log("[alpic] live MCP at", alpicMcpUrl(), "— playground:", alpicPlaygroundUrl());
 }

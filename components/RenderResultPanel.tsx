@@ -24,7 +24,7 @@ export function RenderResultPanel({
 }: RenderResultPanelProps) {
   if (!visible || !render || !scene || !finalWinner || vetoed) {
     return (
-      <div className="panel opacity-60">
+      <div className="panel shrink-0 overflow-hidden opacity-60">
         <div className="panel-header">
           <h2 className="text-sm font-semibold">Served Placement</h2>
         </div>
@@ -43,7 +43,7 @@ export function RenderResultPanel({
   const color = brandColor(finalWinner.brand);
 
   return (
-    <div className="panel">
+    <div className="panel shrink-0 overflow-hidden">
       <div className="panel-header">
         <h2 className="text-sm font-semibold">Served Placement</h2>
         <span className="text-[10px] font-mono-numeric uppercase tracking-wider px-2 py-0.5 rounded border border-zinc-700 text-zinc-400">
@@ -52,7 +52,7 @@ export function RenderResultPanel({
       </div>
 
       <div className="panel-body space-y-3">
-        <div className="relative aspect-video rounded-lg overflow-hidden border border-[#26262b] bg-[#0a0a0b]">
+        <div className="relative max-h-36 aspect-video rounded-lg overflow-hidden border border-[#26262b] bg-[#0a0a0b]">
           <video
             src={render.asset_url || scene.clip_url}
             className="absolute inset-0 w-full h-full object-cover opacity-80"
@@ -73,16 +73,20 @@ export function RenderResultPanel({
             }}
           >
             <span
-              className="text-xs font-bold uppercase tracking-wider px-1 text-center"
+              className="text-[10px] font-bold uppercase tracking-wider px-1 text-center"
               style={{ color }}
             >
               {finalWinner.brand}
             </span>
           </div>
-          <span className="absolute bottom-2 right-2 text-[10px] font-mono-numeric px-2 py-1 rounded bg-black/85 border border-zinc-600 text-zinc-200">
+          <span className="absolute bottom-1.5 right-1.5 text-[9px] font-mono-numeric px-1.5 py-0.5 rounded bg-black/85 border border-zinc-600 text-zinc-200">
             {render.disclosure}
           </span>
         </div>
+
+        <p className="text-[11px] text-zinc-500 leading-relaxed">
+          Full placement visible on the stage. This preview confirms the winning composite.
+        </p>
 
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>

@@ -16,7 +16,7 @@ export function BiddingPanel({ bids, visibleCount, auction, showWinner }: Biddin
   const highBidder = visible.length > 0 ? visible[0] : null;
 
   return (
-    <div className="panel flex flex-col min-h-[220px]">
+    <div className="panel flex flex-col shrink-0 overflow-hidden min-h-[220px] max-h-[320px]">
       <div className="panel-header">
         <div className="flex items-center gap-2">
           <h2 className="text-sm font-semibold">Advertiser Agents</h2>

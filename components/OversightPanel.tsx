@@ -49,7 +49,7 @@ export function OversightPanel({
 
   return (
     <div
-      className={`panel flex flex-col min-h-[280px] ${
+      className={`panel flex flex-col shrink-0 overflow-hidden ${
         blocked ? "border-red-500/50 glow-red" : approved ? "border-emerald-500/30" : ""
       }`}
     >
@@ -68,7 +68,7 @@ export function OversightPanel({
         </button>
       </div>
 
-      <div className="panel-body flex flex-col gap-3 flex-1">
+      <div className="panel-body flex flex-col gap-3">
         {!oversight && (
           <p className="text-xs text-zinc-500 italic text-center py-8">
             Audit trail will stream here after bidding…
@@ -130,11 +130,11 @@ export function OversightPanel({
         )}
 
         {oversight && (
-          <div className="flex-1 min-h-[120px]">
+          <div className="min-h-0">
             <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-mono-numeric mb-2">
               Audit log
             </p>
-            <ul className="audit-scroll max-h-[160px] overflow-y-auto space-y-1 font-mono-numeric text-[11px]">
+            <ul className="audit-scroll max-h-[120px] overflow-y-auto overscroll-contain space-y-1 font-mono-numeric text-[11px]">
               {auditEntries.map((entry, i) => (
                 <li
                   key={`${entry.ts}-${entry.action}-${i}`}

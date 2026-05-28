@@ -287,7 +287,7 @@ export default function Home() {
       )}
 
       {/* Body */}
-      <main className="flex-1 p-4 md:p-6 grid grid-cols-1 xl:grid-cols-[1.5fr_1fr] gap-4 min-h-0">
+      <main className="flex-1 p-4 md:p-6 grid grid-cols-1 xl:grid-cols-[1.5fr_1fr] xl:items-start gap-4 min-h-0">
         {previewScene.channel === "conversational" ? (
           <ConversationStage
             scene={previewScene}
@@ -307,7 +307,7 @@ export default function Home() {
           />
         )}
 
-        <div className="flex flex-col gap-4 min-h-0 min-w-0">
+        <div className="flex flex-col gap-4 min-h-0 min-w-0 xl:max-h-[calc(100vh-7.5rem)] xl:overflow-y-auto xl:overscroll-contain xl:pr-1">
           <BiddingPanel
             bids={data?.bids ?? []}
             visibleCount={visibleBids}
