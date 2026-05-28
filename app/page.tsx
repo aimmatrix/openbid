@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RunResponse } from "@/lib/types";
 import { getSceneById } from "@/mocks/scenes";
+import { getAlpicLinks } from "@/lib/alpic-links";
 import { BiddingPanel } from "@/components/BiddingPanel";
 import { buildMockRunResponse } from "@/components/mockRun";
 import { OversightPanel } from "@/components/OversightPanel";
@@ -188,6 +189,8 @@ export default function Home() {
   const previewScene =
     data?.scene ?? getSceneById(sceneId) ?? getSceneById(SCENES[0].id)!;
 
+  const alpic = getAlpicLinks();
+
   const running =
     phase === "loading" ||
     (phase !== "idle" && phase !== "done" && phase !== "render");
@@ -197,11 +200,43 @@ export default function Home() {
       {/* Top bar */}
       <header className="shrink-0 border-b border-[#26262b] bg-[#141417] px-4 md:px-6 py-3 flex flex-wrap items-center gap-4">
         <div className="flex items-center gap-3">
-          <h1 className="text-xl font-bold tracking-tight">OpenBid</h1>
+          <div className="leading-tight">
+            <h1 className="text-xl font-bold tracking-tight">OpenBid</h1>
+            <p className="text-[10px] text-zinc-500 font-mono-numeric tracking-wide">
+              buy-side ad agent · brand-safe by design
+            </p>
+          </div>
           <span className="flex items-center gap-1.5 text-[10px] font-mono-numeric uppercase tracking-wider px-2 py-1 rounded-full border border-emerald-500/40 text-emerald-400 bg-emerald-500/10">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 live-dot" />
             Live
           </span>
+          {alpic.enabled && alpic.playgroundUrl && (
+            <a
+              href={alpic.playgroundUrl}
+              target="_blank"
+              rel="noreferrer"
+              title={`Live MCP server on Alpic — ${alpic.host}`}
+              className="group flex items-center gap-1.5 text-[10px] font-mono-numeric uppercase tracking-wider px-2 py-1 rounded-full border border-cyan-400/40 text-cyan-300 bg-cyan-400/10 hover:border-cyan-300 hover:text-cyan-200 hover:bg-cyan-400/20 transition-colors"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-300 live-dot" />
+              MCP · Alpic
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="w-2.5 h-2.5 opacity-70 group-hover:opacity-100"
+                aria-hidden="true"
+              >
+                <path d="M6 3.5h6.5V10" />
+                <path d="M12.5 3.5L6 10" />
+                <path d="M12.5 9.5v3h-9v-9h3" />
+              </svg>
+            </a>
+          )}
         </div>
 
         <div className="flex rounded-lg border border-[#26262b] p-0.5 bg-[#0a0a0b]">
