@@ -9,6 +9,7 @@ import { sampleAuctionPark } from "@/mocks/auction";
 import { runAuction } from "@/lib/auction/engine";
 import { bidsKitchen } from "@/mocks/bids";
 import { supervise } from "@/lib/oversight/supervisor";
+import { flushOvermind, overmindStatus } from "@/lib/adapters/overmind";
 
 async function main() {
   // Case 1: park scene — alcohol wins → SHOULD BE BLOCKED.
@@ -32,10 +33,16 @@ async function main() {
   console.log("price:           ", kitchenAuction.price);
   console.assert(kitchenOversight.decision === "approved", "kitchen scene should be APPROVED");
 
-  console.log("\nsmoke OK");
+  // Flush pending OTel spans to Overmind before the process exits.
+  // (SimpleSpanProcessor exports asynchronously; without this the
+  // dashboard shows "No traces found" on short-lived runs.)
+  console.log("\novermind status: ", overmindStatus());
+  await flushOvermind();
+  console.log("smoke OK (traces flushed to overmind)");
 }
 
-main().catch((err) => {
+main().catch(async (err) => {
   console.error(err);
+  await flushOvermind().catch(() => {});
   process.exit(1);
 });
