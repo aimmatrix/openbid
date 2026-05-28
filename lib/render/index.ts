@@ -1,5 +1,5 @@
 // lib/render/index.ts
-// LANE C — Teammate 2 owns this file.
+// FRONTEND lane — your teammate owns this file.
 //
 // Unified entry-point. Tier 1 (composite overlay) is the bulletproof
 // submission. Tier 2 (AI-generated) is the on-stage stretch.

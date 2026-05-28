@@ -1,6 +1,6 @@
-# CLAUDE.md — AdBid Build Handoff
+# CLAUDE.md — OpenBid Build Handoff
 
-> Single-source build doc for Claude Code. Project: **AdBid** — an autonomous
+> Single-source build doc for Claude Code. Project: **OpenBid** — an autonomous
 > media-buying agent for AI-native video ad placement.
 > Event: Cursor AdTech London Hackathon · **Track 01: Buy-Side Agents**.
 > Team of 3, each with their own coding agents, building in parallel.
@@ -189,7 +189,7 @@ adbid/
 ### ─────────── LANE A — Agents & Intelligence ───────────
 
 ```
-You are building the "brains" of AdBid, a Track-01 buy-side ad agent for a
+You are building the "brains" of OpenBid, a Track-01 buy-side ad agent for a
 hackathon. Your scope ONLY: lib/scene/ and lib/agents/. Import all shared types
 from lib/types.ts (already defined — do not edit it). Mock everything from other
 lanes using the contracts.
@@ -221,7 +221,7 @@ Keep it shippable in ~2 hours. Prioritise visible, grounded agent reasoning.
 ### ─────────── LANE B — Marketplace & Oversight ───────────
 
 ```
-You are building the "spine" of AdBid, a Track-01 buy-side ad agent for a
+You are building the "spine" of OpenBid, a Track-01 buy-side ad agent for a
 hackathon. Your scope ONLY: lib/auction/, lib/oversight/, lib/thrad/. Import
 shared types from lib/types.ts (do not edit). Mock other lanes via contracts.
 
@@ -258,7 +258,7 @@ The block-the-unsafe-bid moment is the demo's centrepiece — make it unambiguou
 ### ─────────── LANE C — UI, Demo & Render ───────────
 
 ```
-You are building the "show" of AdBid, a Track-01 buy-side ad agent for a
+You are building the "show" of OpenBid, a Track-01 buy-side ad agent for a
 hackathon. Your scope ONLY: app/, components/, lib/render/. Import shared types
 from lib/types.ts (do not edit). Mock the backend lanes with fixture Scene,
 AuctionResult, and OversightDecision objects (in /mocks).
@@ -358,7 +358,7 @@ ALPIC_*=                  # get from reps (optional)
 ---
 
 ### Notes / caveats
-- "AdBid" is a placeholder name — replace with the team's choice.
+- "OpenBid" is a placeholder name — replace with the team's choice.
 - Thrad, Alpic, and Overmind API specifics were not verifiable in advance; build
   the local fallback first, then wire the real API after talking to reps.
 - Pick first- vs second-price auction and state it; judges may ask.

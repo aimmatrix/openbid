@@ -1,5 +1,5 @@
 // lib/scene/analyzer.ts
-// LANE A — Teammate 1 owns this file.
+// BACKEND lane — you own this file.
 //
 // Returns a Scene given an id. For the hackathon demo we hardcode 2 scenes
 // (already defined in mocks/scenes.ts). Do NOT attempt live vision detection

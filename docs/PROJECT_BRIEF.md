@@ -1,4 +1,4 @@
-# AdBid — Autonomous Media-Buying Agent for AI-Native Video Placement
+# OpenBid — Autonomous Media-Buying Agent for AI-Native Video Placement
 
 **Cursor AdTech London Hackathon · Track 01: Buy-Side Agents**
 

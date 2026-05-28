@@ -1,5 +1,5 @@
 // lib/render/composite.ts
-// LANE C — Teammate 2 owns this file.
+// FRONTEND lane — your teammate owns this file.
 //
 // Tier-1 render: a deterministic, always-works composite overlay on the
 // existing clip. The simplest implementation: return the original clip URL

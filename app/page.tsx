@@ -1,5 +1,5 @@
 // app/page.tsx
-// LANE C — Teammate 2 owns this file.
+// FRONTEND lane — your teammate owns this file.
 //
 // This is a working starter. Replace it with the real demo:
 //   - VideoPlayer with slot bbox overlays
@@ -46,12 +46,12 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 font-mono p-8">
       <header className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">AdBid</h1>
+        <h1 className="text-3xl font-bold tracking-tight">OpenBid</h1>
         <p className="text-sm text-zinc-400 mt-1">
           Autonomous media-buying agent · Track 01 · Cursor AdTech London
         </p>
         <p className="text-xs text-amber-400 mt-2">
-          STARTER UI — Teammate 2: replace this entire page with the real demo (see README_TEAM.md).
+          STARTER UI — Frontend: replace this with the Stitch-generated design wired to /api/run (see README_TEAM.md).
         </p>
       </header>
 

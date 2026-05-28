@@ -1,5 +1,5 @@
 // lib/agents/advertiser.ts
-// LANE A — Teammate 1 owns this file.
+// BACKEND lane — you own this file.
 //
 // For each Campaign, run an autonomous advertiser agent that:
 //   1) calls lib/adapters/tavily.research() to ground the bid in brand + scene context,
