@@ -143,7 +143,7 @@ export function OversightPanel({
                 >
                   <span className="text-zinc-600 shrink-0">{formatTs(entry.ts)}</span>
                   <span
-                    className={
+                    className={`shrink-0 ${
                       entry.action === "blocked"
                         ? "text-red-400"
                         : entry.action === "win"
@@ -151,11 +151,11 @@ export function OversightPanel({
                           : entry.action === "bid"
                             ? "text-cyan-400"
                             : "text-zinc-400"
-                    }
+                    }`}
                   >
                     [{entry.action}]
                   </span>
-                  <span className="text-zinc-500 truncate">{entry.detail}</span>
+                  <span className="text-zinc-500 truncate min-w-0 flex-1">{entry.detail}</span>
                 </li>
               ))}
             </ul>

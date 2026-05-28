@@ -307,7 +307,7 @@ export default function Home() {
           />
         )}
 
-        <div className="flex flex-col gap-4 min-h-0">
+        <div className="flex flex-col gap-4 min-h-0 min-w-0">
           <BiddingPanel
             bids={data?.bids ?? []}
             visibleCount={visibleBids}

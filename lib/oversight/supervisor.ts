@@ -10,7 +10,7 @@ import type {
   AuditEntry,
   Bid,
 } from "@/lib/types";
-import { trace, fetchAuditLog } from "@/lib/adapters/overmind";
+import { trace, fetchAuditLog, drainLocalBuffer } from "@/lib/adapters/overmind";
 import { findTriggeredRule, isEligible, SAFETY_RULES } from "@/lib/oversight/rules";
 
 type TracePayload = AuditEntry & { scene_id: string };
@@ -82,6 +82,9 @@ export async function supervise(
   auction: AuctionResult,
   campaigns: Campaign[],
 ): Promise<OversightDecision> {
+  // Reset this scene's local audit buffer so each run shows only its own
+  // entries (Overmind keeps the full cross-run history in the cloud).
+  drainLocalBuffer(scene.scene_id);
   await traceAuctionLifecycle(scene, auction);
 
   const winnerCampaign = campaignFor(campaigns, auction.winner.agent_id);

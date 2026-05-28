@@ -26,7 +26,7 @@ export function ConversationStage({
   const color = placementBrand ? brandColor(placementBrand) : "#22d3ee";
 
   return (
-    <div className="panel flex flex-col overflow-hidden">
+    <div className="panel flex flex-col overflow-hidden min-w-0">
       <div className="panel-header">
         <div>
           <h2 className="text-sm font-semibold tracking-tight">Conversational Channel</h2>
