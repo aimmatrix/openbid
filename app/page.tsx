@@ -1,184 +1,295 @@
-// app/page.tsx
-// FRONTEND lane — your teammate owns this file.
-//
-// This is a working starter. Replace it with the real demo:
-//   - VideoPlayer with slot bbox overlays
-//   - BiddingPanel streaming agent reasoning + Tavily snippets
-//   - OversightPanel (the centrepiece: shows the BLOCK in red)
-//   - RenderResult with disclosure overlay
-//   - RevenueCounter
-//
-// Spec: docs/CLAUDE.md §6 (Lane C) and README_TEAM.md.
-
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { RunResponse } from "@/lib/types";
+import { getSceneById } from "@/mocks/scenes";
+import { BiddingPanel } from "@/components/BiddingPanel";
+import { buildMockRunResponse } from "@/components/mockRun";
+import { OversightPanel } from "@/components/OversightPanel";
+import { RenderResultPanel } from "@/components/RenderResultPanel";
+import { RevenueCounter } from "@/components/RevenueCounter";
+import { StatusBar } from "@/components/StatusBar";
+import { VideoPlayer } from "@/components/VideoPlayer";
 
 const SCENES = [
-  { id: "scene_kitchen_morning", label: "Kitchen — coffee should win cleanly" },
-  { id: "scene_park_afternoon",  label: "Park (minor_present) — alcohol gets BLOCKED" },
-];
+  { id: "scene_kitchen_morning", label: "Kitchen — morning" },
+  { id: "scene_park_afternoon", label: "Park — afternoon" },
+] as const;
+
+type DemoPhase = "idle" | "loading" | "bidding" | "auction" | "oversight" | "render" | "done";
+
+async function fetchRun(scene_id: string, tier: 1 | 2): Promise<RunResponse> {
+  const res = await fetch("/api/run", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ scene_id, tier }),
+  });
+  if (!res.ok) {
+    throw new Error(await res.text());
+  }
+  return res.json();
+}
 
 export default function Home() {
-  const [loading, setLoading] = useState(false);
+  const [sceneId, setSceneId] = useState<string>(SCENES[0].id);
   const [data, setData] = useState<RunResponse | null>(null);
+  const [phase, setPhase] = useState<DemoPhase>("idle");
+  const [visibleBids, setVisibleBids] = useState(0);
+  const [visibleAudit, setVisibleAudit] = useState(0);
+  const [showWinner, setShowWinner] = useState(false);
+  const [showVerdict, setShowVerdict] = useState(false);
+  const [showRender, setShowRender] = useState(false);
+  const [showPlacement, setShowPlacement] = useState(false);
+  const [vetoed, setVetoed] = useState(false);
+  const [tier2Loading, setTier2Loading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [usingMock, setUsingMock] = useState(false);
 
-  async function run(scene_id: string) {
-    setLoading(true);
+  const [revenue, setRevenue] = useState(0);
+  const [lastDelta, setLastDelta] = useState<number | null>(null);
+  const [revenuePopKey, setRevenuePopKey] = useState(0);
+  const revenueCounted = useRef(false);
+
+  const resetDemo = useCallback(() => {
+    setData(null);
+    setPhase("idle");
+    setVisibleBids(0);
+    setVisibleAudit(0);
+    setShowWinner(false);
+    setShowVerdict(false);
+    setShowRender(false);
+    setShowPlacement(false);
+    setVetoed(false);
     setError(null);
-    try {
-      const res = await fetch("/api/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scene_id, tier: 1 }),
-      });
-      if (!res.ok) throw new Error(await res.text());
-      setData(await res.json());
-    } catch (err) {
-      setError(String(err));
-    } finally {
-      setLoading(false);
+    revenueCounted.current = false;
+  }, []);
+
+  const runOrchestration = useCallback((response: RunResponse) => {
+    setData(response);
+    setPhase("bidding");
+    setVisibleBids(0);
+    setVisibleAudit(0);
+    setShowWinner(false);
+    setShowVerdict(false);
+    setShowRender(false);
+    setShowPlacement(false);
+    setVetoed(false);
+    revenueCounted.current = false;
+  }, []);
+
+  const loadRun = useCallback(
+    async (targetScene: string, tier: 1 | 2 = 1) => {
+      setError(null);
+      setUsingMock(false);
+      if (tier === 1) resetDemo();
+      setPhase("loading");
+
+      try {
+        const response = await fetchRun(targetScene, tier);
+        if (tier === 2 && data) {
+          setData({ ...data, render: response.render });
+          setPhase("done");
+          setShowRender(true);
+          setShowPlacement(true);
+        } else {
+          runOrchestration(response);
+        }
+      } catch {
+        try {
+          const mock = buildMockRunResponse(targetScene, tier);
+          setUsingMock(true);
+          if (tier === 2 && data) {
+            setData({ ...data, render: mock.render });
+            setPhase("done");
+            setShowRender(true);
+            setShowPlacement(true);
+          } else {
+            runOrchestration(mock);
+          }
+        } catch (mockErr) {
+          setError(String(mockErr));
+          setPhase("idle");
+        }
+      } finally {
+        setTier2Loading(false);
+      }
+    },
+    [data, resetDemo, runOrchestration],
+  );
+
+  const handleRun = () => {
+    void loadRun(sceneId, 1);
+  };
+
+  const handleTier2 = () => {
+    setTier2Loading(true);
+    void loadRun(sceneId, 2);
+  };
+
+  const handleVeto = () => {
+    setVetoed(true);
+    setShowRender(false);
+    setShowPlacement(false);
+  };
+
+  // Stagger bid cards
+  useEffect(() => {
+    if (phase !== "bidding" || !data) return;
+    if (visibleBids >= data.bids.length) {
+      const t = setTimeout(() => setPhase("auction"), 400);
+      return () => clearTimeout(t);
     }
-  }
+    const t = setTimeout(() => setVisibleBids((n) => n + 1), 650);
+    return () => clearTimeout(t);
+  }, [phase, visibleBids, data]);
+
+  // Auction winner
+  useEffect(() => {
+    if (phase !== "auction") return;
+    setShowWinner(true);
+    const t = setTimeout(() => setPhase("oversight"), 900);
+    return () => clearTimeout(t);
+  }, [phase]);
+
+  // Stream audit log
+  useEffect(() => {
+    if (phase !== "oversight" || !data) return;
+    const total = data.oversight.audit_log.length;
+    if (visibleAudit < total) {
+      const t = setTimeout(() => setVisibleAudit((n) => n + 1), 380);
+      return () => clearTimeout(t);
+    }
+    const t = setTimeout(() => {
+      setShowVerdict(true);
+      setPhase("render");
+    }, 600);
+    return () => clearTimeout(t);
+  }, [phase, visibleAudit, data]);
+
+  // Render + revenue
+  useEffect(() => {
+    if (phase !== "render" || !data) return;
+    const t = setTimeout(() => {
+      setShowRender(true);
+      setShowPlacement(true);
+      setPhase("done");
+
+      if (!revenueCounted.current && !vetoed) {
+        revenueCounted.current = true;
+        const delta = data.auction.price;
+        setRevenue((r) => r + delta);
+        setLastDelta(delta);
+        setRevenuePopKey((k) => k + 1);
+      }
+    }, 500);
+    return () => clearTimeout(t);
+  }, [phase, data, vetoed]);
+
+  const previewScene =
+    data?.scene ?? getSceneById(sceneId) ?? getSceneById(SCENES[0].id)!;
+
+  const running =
+    phase === "loading" ||
+    (phase !== "idle" && phase !== "done" && phase !== "render");
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 font-mono p-8">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">OpenBid</h1>
-        <p className="text-sm text-zinc-400 mt-1">
-          Autonomous media-buying agent · Track 01 · Cursor AdTech London
-        </p>
-        <p className="text-xs text-amber-400 mt-2">
-          STARTER UI — Frontend: replace this with the Stitch-generated design wired to /api/run (see README_TEAM.md).
-        </p>
-      </header>
+    <div className="flex flex-col min-h-screen">
+      {/* Top bar */}
+      <header className="shrink-0 border-b border-[#26262b] bg-[#141417] px-4 md:px-6 py-3 flex flex-wrap items-center gap-4">
+        <div className="flex items-center gap-3">
+          <h1 className="text-xl font-bold tracking-tight">OpenBid</h1>
+          <span className="flex items-center gap-1.5 text-[10px] font-mono-numeric uppercase tracking-wider px-2 py-1 rounded-full border border-emerald-500/40 text-emerald-400 bg-emerald-500/10">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 live-dot" />
+            Live
+          </span>
+        </div>
 
-      <section className="mb-8">
-        <h2 className="text-sm uppercase tracking-wider text-zinc-400 mb-3">Run an auction</h2>
-        <div className="flex gap-3 flex-wrap">
+        <div className="flex rounded-lg border border-[#26262b] p-0.5 bg-[#0a0a0b]">
           {SCENES.map((s) => (
             <button
               key={s.id}
-              disabled={loading}
-              onClick={() => run(s.id)}
-              className="px-4 py-2 rounded bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-sm"
+              type="button"
+              disabled={running}
+              onClick={() => {
+                setSceneId(s.id);
+                resetDemo();
+              }}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md border border-transparent transition-colors ${
+                sceneId === s.id ? "segment-active" : "text-zinc-400 hover:text-zinc-200"
+              }`}
             >
               {s.label}
             </button>
           ))}
         </div>
-      </section>
 
-      {loading && <p className="text-zinc-400">Running...</p>}
-      {error && <pre className="text-red-400 text-xs whitespace-pre-wrap">{error}</pre>}
+        <div className="flex-1" />
 
-      {data && (
-        <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-          <Card title="Scene">
-            <p className="text-xs text-zinc-400 mb-2">{data.scene.scene_id}</p>
-            <p className="text-sm mb-3">{data.scene.context}</p>
-            <p className="text-xs text-zinc-500">
-              flags: {data.scene.flags.length ? data.scene.flags.join(", ") : "none"} ·{" "}
-              {data.scene.slots.length} slots
-            </p>
-          </Card>
+        <RevenueCounter total={revenue} lastDelta={lastDelta} popKey={revenuePopKey} />
 
-          <Card title="Bids">
-            <ul className="space-y-3 text-sm">
-              {data.bids.map((b) => (
-                <li key={b.agent_id} className="border-l-2 border-zinc-700 pl-3">
-                  <div className="flex justify-between">
-                    <span className="font-semibold">{b.brand}</span>
-                    <span>£{b.bid.toFixed(2)} CPM</span>
-                  </div>
-                  <p className="text-xs text-zinc-400 mt-1">{b.reasoning.slice(0, 220)}...</p>
-                  {b.research_snippets && b.research_snippets.length > 0 && (
-                    <p className="text-xs text-zinc-500 mt-1">
-                      Tavily · {b.research_snippets.length} snippets
-                    </p>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </Card>
+        <button
+          type="button"
+          className="btn-primary px-5 py-2.5 text-sm font-mono-numeric"
+          onClick={handleRun}
+          disabled={phase === "loading" || (phase !== "idle" && phase !== "done")}
+        >
+          {phase === "loading" ? "Running…" : "Run Auction"}
+        </button>
+      </header>
 
-          <Card title="Auction">
-            <p className="text-sm">
-              Winner: <span className="font-semibold">{data.auction.winner.brand}</span>
-            </p>
-            <p className="text-xs text-zinc-500">
-              Second-price: pays £{data.auction.price.toFixed(2)} CPM
-            </p>
-          </Card>
-
-          <Card
-            title="Oversight"
-            tone={data.oversight.decision === "blocked" ? "danger" : "ok"}
-          >
-            <p className="text-sm">
-              Decision:{" "}
-              <span
-                className={
-                  data.oversight.decision === "blocked" ? "text-red-400 font-bold" : "text-green-400 font-bold"
-                }
-              >
-                {data.oversight.decision.toUpperCase()}
-              </span>
-            </p>
-            {data.oversight.triggered_rule && (
-              <p className="text-xs text-red-300 mt-1">
-                Rule: {data.oversight.triggered_rule}
-              </p>
-            )}
-            <p className="text-sm mt-2">{data.oversight.reason}</p>
-            <p className="text-sm mt-3">
-              Final winner:{" "}
-              <span className="font-semibold">{data.oversight.final_winner.brand}</span>
-            </p>
-            <details className="mt-3">
-              <summary className="text-xs text-zinc-500 cursor-pointer">
-                Audit log ({data.oversight.audit_log.length} entries)
-              </summary>
-              <ul className="text-xs text-zinc-400 mt-2 space-y-1 font-mono">
-                {data.oversight.audit_log.map((e, i) => (
-                  <li key={i}>
-                    [{e.action}] {e.agent_id}: {e.detail}
-                  </li>
-                ))}
-              </ul>
-            </details>
-          </Card>
-
-          <Card title="Render">
-            <p className="text-sm">
-              Asset: <code className="text-xs">{data.render.asset_url}</code>
-            </p>
-            <p className="text-sm">Tier: {data.render.tier}</p>
-            <p className="text-sm font-semibold mt-2">{data.render.disclosure}</p>
-          </Card>
-        </section>
+      {error && (
+        <div className="mx-4 mt-3 px-3 py-2 rounded border border-red-500/40 bg-red-500/10 text-xs text-red-300 font-mono-numeric">
+          {error}
+        </div>
       )}
-    </div>
-  );
-}
 
-function Card({
-  title,
-  children,
-  tone = "default",
-}: {
-  title: string;
-  children: React.ReactNode;
-  tone?: "default" | "danger" | "ok";
-}) {
-  const border =
-    tone === "danger" ? "border-red-500/40" : tone === "ok" ? "border-green-500/40" : "border-zinc-800";
-  return (
-    <div className={`rounded-lg border ${border} bg-zinc-900/50 p-4`}>
-      <h3 className="text-xs uppercase tracking-wider text-zinc-400 mb-3">{title}</h3>
-      {children}
+      {usingMock && phase !== "idle" && (
+        <div className="mx-4 mt-2 px-3 py-1.5 rounded border border-amber-500/30 bg-amber-500/5 text-[10px] text-amber-400/90 font-mono-numeric">
+          Mock data — /api/run unavailable
+        </div>
+      )}
+
+      {/* Body */}
+      <main className="flex-1 p-4 md:p-6 grid grid-cols-1 xl:grid-cols-[1.5fr_1fr] gap-4 min-h-0">
+        <VideoPlayer
+          scene={previewScene}
+          active={phase !== "idle" && phase !== "loading"}
+          showPlacement={showPlacement && !vetoed}
+          placementBrand={data?.oversight.final_winner.brand}
+          disclosure={data?.render.disclosure}
+          placementSlotId={data?.oversight.final_winner.target_slot}
+        />
+
+        <div className="flex flex-col gap-4 min-h-0">
+          <BiddingPanel
+            bids={data?.bids ?? []}
+            visibleCount={visibleBids}
+            auction={showWinner ? (data?.auction ?? null) : null}
+            showWinner={showWinner}
+          />
+
+          <OversightPanel
+            oversight={data?.oversight ?? null}
+            auction={data?.auction ?? null}
+            visibleAuditCount={visibleAudit}
+            showVerdict={showVerdict}
+            vetoed={vetoed}
+            onVeto={handleVeto}
+          />
+
+          <RenderResultPanel
+            render={data?.render ?? null}
+            scene={data?.scene ?? null}
+            finalWinner={data?.oversight.final_winner ?? null}
+            visible={showRender}
+            vetoed={vetoed}
+            tier2Loading={tier2Loading}
+            onGenerateTier2={handleTier2}
+          />
+        </div>
+      </main>
+
+      <StatusBar data={data} vetoed={vetoed} phase={phase} />
     </div>
   );
 }
