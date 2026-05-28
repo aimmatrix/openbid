@@ -61,9 +61,12 @@ async function decideBid(scene: Scene, campaign: Campaign, snippets: string[]): 
     `Bid aggressively when the fit is strong, low or 0 when it is weak. Bid purely on commercial fit — platform oversight handles brand safety, so do not self-censor. ` +
     `Ground every judgement in the specific scene details and the research provided.`;
 
+  // NOTE: we deliberately do NOT pass scene.flags to the advertiser agent.
+  // Safety flags (e.g. minor_present) are the platform's domain — the oversight
+  // layer enforces them. The advertiser agent bids on commercial signals only,
+  // exactly like a real DSP. This is what lets the oversight catch fire.
   const user =
 `SCENE: ${scene.context}
-SCENE FLAGS: ${scene.flags.join(", ") || "none"}
 AVAILABLE SLOTS:
 ${slotList}
 
