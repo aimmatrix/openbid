@@ -116,8 +116,8 @@ Two demo scenes exist:
 | Time | Ammad (Backend) | Teammate (Frontend) |
 |---|---|---|
 | :00–:20 | Push repo + brief | Run `STITCH_PROMPT.md` through Google Stitch; export design |
-| :20–1:30 | Polish agents + auction + oversight; talk to Overmind + Thrad reps | Adapt Stitch output into `app/page.tsx` + `components/*` against `mocks/` |
-| 1:30–2:30 | Wire real APIs (LLM + Tavily + Thrad + Overmind); pre-gen Tier-2 backup clip | Build the oversight panel (the block moment) + bidding cards |
+| :20–1:30 | Polish agents + auction + oversight; talk to Overmind reps | Adapt Stitch output into `app/page.tsx` + `components/*` against `mocks/` |
+| 1:30–2:30 | Wire real APIs (LLM + Tavily + Overmind); pre-gen Tier-2 backup clip | Build the oversight panel (the block moment) + bidding cards |
 | 2:30–3:15 | **Integration:** confirm `/api/run` shape; verify oversight end-to-end | Wire `/api/run` into the page; revenue counter; disclosure overlay |
 | 3:15–4:00 | Cursor SDK mention + Alpic MCP if ahead | Lock Tier-1 visuals; Tier-2 fallback |
 | 4:00–freeze | Buffer; lock Tier-1 as submission | Polish; rehearse the demo |
@@ -160,7 +160,6 @@ Pre-event (tonight):
 - One of `RUNWAY_API_KEY` / `LUMA_API_KEY` / `PIKA_API_KEY` / `VEO_API_KEY` — MEDIUM (Tier-2)
 
 At-event (sponsor reps):
-- `THRAD_API_KEY` + base URL — Thrad rep
 - `OVERMIND_API_KEY` + base URL — Overmind rep (HIGHEST BONUS)
 - `ALPIC_*` — Alpic rep (optional, only if ahead)
 

@@ -8,7 +8,7 @@ import { runAgents } from "@/lib/agents/advertiser";
 import { runAuction } from "@/lib/auction/engine";
 import { supervise } from "@/lib/oversight/supervisor";
 import { render } from "@/lib/render";
-import { getCampaigns, reportPlacement } from "@/lib/adapters/thrad";
+import { getCampaigns, reportPlacement } from "@/lib/campaigns";
 import {
   MCP_TOOLS,
   coerceBids,
