@@ -6,7 +6,7 @@ These three files back the Video Stage.
 |---|---|---|
 | `kitchen-morning.mp4` | `scene_kitchen_morning` | **Real AI footage** — Sora-2 generated (woman making coffee, sunrise kitchen) |
 | `park-afternoon.mp4` | `scene_park_afternoon` | **Real AI footage** — Sora-2 generated (adults in a summer park) |
-| `tier2-fallback.mp4` | Tier-2 fallback | Placeholder gradient (swap for any short branded ad clip) |
+| `tier2-fallback.mp4` | Tier-2 fallback | **Real AI footage** — Sora-2 generated (premium coffee ad) |
 
 ## Note on the park scene
 
