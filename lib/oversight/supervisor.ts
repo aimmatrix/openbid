@@ -1,64 +1,100 @@
 // lib/oversight/supervisor.ts
 // Lane I+S — the demo centrepiece. Supervises every auction outcome and
-// blocks unsafe placements. Currently implements one rule (alcohol_x_minor);
-// add more rules as new sponsor scenarios come up.
-//
-// Uses lib/adapters/overmind to trace every decision; in the absence of an
-// OVERMIND_API_KEY the buffer stays local but the API is identical.
+// blocks unsafe placements. Traces research → bid → win → verdict via Overmind.
 
-import type { Scene, Campaign, AuctionResult, OversightDecision, AuditEntry, Bid } from "@/lib/types";
+import type {
+  Scene,
+  Campaign,
+  AuctionResult,
+  OversightDecision,
+  AuditEntry,
+  Bid,
+} from "@/lib/types";
 import { trace, fetchAuditLog } from "@/lib/adapters/overmind";
+import { findTriggeredRule, isEligible, SAFETY_RULES } from "@/lib/oversight/rules";
 
-interface SafetyRule {
-  id: string;
-  matches: (scene: Scene, winnerCampaign: Campaign | undefined) => boolean;
-  reason: string;
+type TracePayload = AuditEntry & { scene_id: string };
+
+async function emit(entry: TracePayload): Promise<void> {
+  await trace(entry);
 }
 
-const RULES: SafetyRule[] = [
-  {
-    id: "alcohol_x_minor",
-    matches: (scene, c) =>
-      !!c && c.category === "alcohol" && scene.flags.includes("minor_present"),
-    reason: "Alcohol-category brand cannot serve in scenes flagged minor_present. Promoting runner-up.",
-  },
-  {
-    id: "violence_guardrail",
-    matches: (scene, c) =>
-      !!c && c.guardrails.includes("no_violence") && scene.flags.includes("violence"),
-    reason: "Brand has no_violence guardrail; scene contains violence. Promoting runner-up.",
-  },
-];
+function campaignFor(campaigns: Campaign[], agent_id: string): Campaign | undefined {
+  return campaigns.find((c) => c.agent_id === agent_id);
+}
+
+/** Replay the full agent lifecycle into the audit log before rendering a verdict. */
+async function traceAuctionLifecycle(
+  scene: Scene,
+  auction: AuctionResult,
+): Promise<void> {
+  const now = Date.now();
+  const bidders = [...auction.ranked_bids].reverse(); // lowest rank first → chronological feel
+
+  for (let i = 0; i < bidders.length; i++) {
+    const ranked = bidders[i];
+    const offset = i * 400;
+
+    if (ranked.research_snippets?.length) {
+      for (const snippet of ranked.research_snippets) {
+        await emit({
+          ts: now - (bidders.length - i) * 900 + offset,
+          agent_id: ranked.agent_id,
+          action: "research",
+          detail: `Tavily: ${snippet}`,
+          scene_id: scene.scene_id,
+        });
+      }
+    }
+
+    await emit({
+      ts: now - (bidders.length - i) * 700 + offset + 200,
+      agent_id: ranked.agent_id,
+      action: "bid",
+      detail: `£${ranked.bid.toFixed(2)} CPM on ${ranked.target_slot} — ${ranked.reasoning.slice(0, 100)}`,
+      scene_id: scene.scene_id,
+    });
+  }
+
+  await emit({
+    ts: now - 300,
+    agent_id: auction.winner.agent_id,
+    action: "win",
+    detail: `Auction winner: ${auction.winner.brand} £${auction.winner.bid.toFixed(2)} (clears at £${auction.price.toFixed(2)} second-price)`,
+    scene_id: scene.scene_id,
+  });
+}
+
+function pickEligibleRunnerUp(
+  auction: AuctionResult,
+  campaigns: Campaign[],
+  scene: Scene,
+): Bid | undefined {
+  for (const ranked of auction.ranked_bids.slice(1)) {
+    const campaign = campaignFor(campaigns, ranked.agent_id);
+    if (isEligible(scene, campaign)) return ranked;
+  }
+  return undefined;
+}
 
 export async function supervise(
   scene: Scene,
   auction: AuctionResult,
   campaigns: Campaign[],
 ): Promise<OversightDecision> {
-  // Replay every bid into the trace log.
-  for (const ranked of auction.ranked_bids) {
-    const entry: AuditEntry = {
-      ts: Date.now(),
-      agent_id: ranked.agent_id,
-      action: ranked.agent_id === auction.winner.agent_id ? "win" : "bid",
-      detail: `£${ranked.bid.toFixed(2)} CPM on ${ranked.target_slot} — ${ranked.reasoning.slice(0, 80)}`,
-    };
-    await trace({ ...entry, scene_id: scene.scene_id });
-  }
+  await traceAuctionLifecycle(scene, auction);
 
-  const winnerCampaign = campaigns.find((c) => c.agent_id === auction.winner.agent_id);
-
-  // Find a triggered rule, if any.
-  const triggered = RULES.find((r) => r.matches(scene, winnerCampaign));
+  const winnerCampaign = campaignFor(campaigns, auction.winner.agent_id);
+  const triggered = findTriggeredRule(scene, winnerCampaign);
 
   if (!triggered) {
-    await trace({
+    await emit({
       ts: Date.now(),
       agent_id: "supervisor",
       action: "approved",
-      detail: `Winner ${auction.winner.brand} approved (no rules triggered)`,
+      detail: `Winner ${auction.winner.brand} cleared all ${SAFETY_RULES.length} safety rules — placement approved`,
       scene_id: scene.scene_id,
-    } as AuditEntry & { scene_id: string });
+    });
 
     return {
       decision: "approved",
@@ -68,38 +104,31 @@ export async function supervise(
     };
   }
 
-  // Blocked — promote the next eligible runner-up.
-  const promoted = pickRunnerUp(auction, campaigns, scene, triggered.id);
+  const promoted = pickEligibleRunnerUp(auction, campaigns, scene);
 
-  await trace({
+  await emit({
     ts: Date.now(),
     agent_id: "supervisor",
     action: "blocked",
-    detail: `Rule ${triggered.id} — ${auction.winner.brand} blocked, ${promoted?.brand ?? "no eligible runner-up"} promoted`,
+    detail: `Rule ${triggered.id} — ${auction.winner.brand} blocked${promoted ? `, runner-up ${promoted.brand} promoted` : ", no eligible runner-up"}`,
     scene_id: scene.scene_id,
-  } as AuditEntry & { scene_id: string });
+  });
+
+  if (promoted) {
+    await emit({
+      ts: Date.now() + 1,
+      agent_id: "supervisor",
+      action: "promote",
+      detail: `${promoted.brand} promoted to final_winner after ${triggered.id} block on ${auction.winner.brand}`,
+      scene_id: scene.scene_id,
+    });
+  }
 
   return {
     decision: "blocked",
     reason: triggered.reason,
     triggered_rule: triggered.id,
     audit_log: await fetchAuditLog(scene.scene_id),
-    final_winner: promoted ?? auction.winner, // if no eligible runner-up, return original (UI shows blocked anyway)
+    final_winner: promoted ?? auction.winner,
   };
-}
-
-function pickRunnerUp(
-  auction: AuctionResult,
-  campaigns: Campaign[],
-  scene: Scene,
-  failedRuleId: string,
-): Bid | undefined {
-  for (const ranked of auction.ranked_bids.slice(1)) {
-    const c = campaigns.find((x) => x.agent_id === ranked.agent_id);
-    // If this candidate would also trigger the same rule, skip them.
-    const failedRule = RULES.find((r) => r.id === failedRuleId);
-    if (failedRule && failedRule.matches(scene, c)) continue;
-    return ranked;
-  }
-  return undefined;
 }
